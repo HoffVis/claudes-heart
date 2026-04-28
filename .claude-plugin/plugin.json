@@ -1,0 +1,8 @@
+{
+  "name": "heart",
+  "version": "2.0.0",
+  "description": "Autonomous project brain for Claude Code — reads HEART.md, prioritizes tasks, spawns agents, reviews quality, self-generates improvements",
+  "author": {
+    "name": "th2025"
+  }
+}

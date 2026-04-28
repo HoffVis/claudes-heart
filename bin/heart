@@ -1,0 +1,500 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# heart — CLI for the Heart autonomous project brain
+# https://github.com/th2025/heart (future)
+
+VERSION="2.0.0"
+HEART_HOME="$HOME/.claude/plugins/local/heart"
+SKILLS_DIR="$HOME/.claude/skills"
+SETTINGS_FILE="$HOME/.claude/settings.json"
+TEMPLATES_DIR="$HEART_HOME/templates"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+DIM='\033[2m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+print_logo() {
+  echo ""
+  echo -e "${GREEN}  ♥  Heart v${VERSION}${RESET}"
+  echo -e "${DIM}  Autonomous project brain for Claude Code${RESET}"
+  echo ""
+}
+
+print_usage() {
+  print_logo
+  echo "Usage: heart <command> [options]"
+  echo ""
+  echo "Setup:"
+  echo "  install           Install Heart skills and hooks into Claude Code"
+  echo "  uninstall         Remove Heart from Claude Code"
+  echo ""
+  echo "Project:"
+  echo "  init [type]       Create HEART.md in current directory"
+  echo "    agent           Focused single-project executor (default)"
+  echo "    reviewer <path> Reviews a target project, adds tasks"
+  echo "    watcher         Monitors build, tests, deps, security"
+  echo "    multi           Orchestrates multiple sub-projects"
+  echo ""
+  echo "Runtime:"
+  echo "  start             Start the brain (run /heart in Claude Code)"
+  echo "  start --loop <N>  Start with interval (e.g., --loop 10m)"
+  echo "  stop              Stop the heartbeat"
+  echo "  add \"task\"        Add a task to HEART.md"
+  echo "  status            Show current heartbeat status"
+  echo ""
+  echo "Examples:"
+  echo "  heart install                    # One-time setup"
+  echo "  cd my-project && heart init      # Create HEART.md"
+  echo "  heart start --loop 10m           # Start brain with 10m interval"
+  echo "  heart add \"Fix the login page\"   # Add a task"
+  echo "  heart status                     # Check progress"
+  echo ""
+}
+
+# ── Install ──────────────────────────────────────────────
+
+cmd_install() {
+  print_logo
+  echo -e "${CYAN}Installing Heart v${VERSION}...${RESET}"
+  echo ""
+
+  local errors=0
+
+  # 1. Verify heart plugin exists
+  if [[ ! -d "$HEART_HOME" ]]; then
+    echo -e "  ${RED}✗${RESET} Heart plugin not found at $HEART_HOME"
+    echo "  Clone it first: git clone <repo> $HEART_HOME"
+    exit 1
+  fi
+
+  # 2. Create skill directories and copy skills
+  mkdir -p "$SKILLS_DIR/heart" "$SKILLS_DIR/heart-stop" "$SKILLS_DIR/heart-add"
+
+  if [[ -f "$HEART_HOME/skills-src/heart.md" ]]; then
+    cp "$HEART_HOME/skills-src/heart.md" "$SKILLS_DIR/heart/SKILL.md"
+    cp "$HEART_HOME/skills-src/heart-stop.md" "$SKILLS_DIR/heart-stop/SKILL.md"
+    cp "$HEART_HOME/skills-src/heart-add.md" "$SKILLS_DIR/heart-add/SKILL.md"
+    echo -e "  ${GREEN}✓${RESET} Skills installed"
+  else
+    echo -e "  ${RED}✗${RESET} Skill sources not found in $HEART_HOME/skills-src/"
+    errors=$((errors + 1))
+  fi
+
+  # 3. Make scripts executable
+  chmod +x "$HEART_HOME/hooks/stop-hook.sh" 2>/dev/null
+  chmod +x "$HEART_HOME/bin/heart" 2>/dev/null
+  echo -e "  ${GREEN}✓${RESET} Scripts made executable"
+
+  # 4. Register Stop hook in settings.json using Node.js (every Claude Code user has it)
+  if [[ -f "$SETTINGS_FILE" ]]; then
+    if grep -q 'stop-hook.sh' "$SETTINGS_FILE" 2>/dev/null; then
+      echo -e "  ${GREEN}✓${RESET} Stop hook already registered"
+    else
+      # Use Node.js for safe JSON manipulation
+      if command -v node &>/dev/null; then
+        node -e "
+          const fs = require('fs');
+          const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf8'));
+          if (!settings.hooks) settings.hooks = {};
+          if (!settings.hooks.Stop) settings.hooks.Stop = [];
+          // Check if already registered
+          const hasHeart = settings.hooks.Stop.some(s =>
+            s.hooks && s.hooks.some(h => h.command && h.command.includes('heart'))
+          );
+          if (!hasHeart) {
+            settings.hooks.Stop.push({
+              hooks: [{
+                type: 'command',
+                command: '\$HOME/.claude/plugins/local/heart/hooks/stop-hook.sh'
+              }]
+            });
+          }
+          fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2) + '\n');
+        " 2>/dev/null
+        if [[ $? -eq 0 ]]; then
+          echo -e "  ${GREEN}✓${RESET} Stop hook registered in settings.json"
+        else
+          echo -e "  ${RED}✗${RESET} Failed to register Stop hook"
+          errors=$((errors + 1))
+        fi
+      elif command -v jq &>/dev/null; then
+        local tmp=$(mktemp)
+        jq '.hooks.Stop = ((.hooks.Stop // []) + [{"hooks": [{"type": "command", "command": "$HOME/.claude/plugins/local/heart/hooks/stop-hook.sh"}]}])' "$SETTINGS_FILE" > "$tmp"
+        mv "$tmp" "$SETTINGS_FILE"
+        echo -e "  ${GREEN}✓${RESET} Stop hook registered in settings.json"
+      else
+        echo -e "  ${RED}✗${RESET} Cannot modify settings.json (need node or jq)"
+        errors=$((errors + 1))
+      fi
+    fi
+  else
+    # Create settings.json if it doesn't exist
+    mkdir -p "$(dirname "$SETTINGS_FILE")"
+    cat > "$SETTINGS_FILE" << 'SETTINGS_EOF'
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/plugins/local/heart/hooks/stop-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+SETTINGS_EOF
+    echo -e "  ${GREEN}✓${RESET} Created settings.json with Stop hook"
+  fi
+
+  # 5. Add to PATH
+  local shell_rc=""
+  if [[ -f "$HOME/.zshrc" ]]; then
+    shell_rc="$HOME/.zshrc"
+  elif [[ -f "$HOME/.bashrc" ]]; then
+    shell_rc="$HOME/.bashrc"
+  elif [[ -f "$HOME/.bash_profile" ]]; then
+    shell_rc="$HOME/.bash_profile"
+  fi
+
+  if [[ -n "$shell_rc" ]]; then
+    if grep -q 'heart/bin' "$shell_rc" 2>/dev/null; then
+      echo -e "  ${GREEN}✓${RESET} PATH already configured"
+    else
+      echo '' >> "$shell_rc"
+      echo '# Heart — autonomous project brain for Claude Code' >> "$shell_rc"
+      echo 'export PATH="$HOME/.claude/plugins/local/heart/bin:$PATH"' >> "$shell_rc"
+      echo -e "  ${GREEN}✓${RESET} Added to PATH in $(basename "$shell_rc")"
+    fi
+  else
+    echo -e "  ${YELLOW}!${RESET} Could not find shell rc file. Add manually:"
+    echo "    export PATH=\"\$HOME/.claude/plugins/local/heart/bin:\$PATH\""
+  fi
+
+  # Summary
+  echo ""
+  if [[ $errors -eq 0 ]]; then
+    echo -e "${GREEN}Heart installed successfully!${RESET}"
+  else
+    echo -e "${YELLOW}Heart installed with $errors warning(s).${RESET}"
+  fi
+  echo ""
+  echo "  Quick start:"
+  echo ""
+  echo "    cd your-project"
+  echo "    heart init              # Create HEART.md"
+  echo "    # Open Claude Code in the project"
+  echo "    /heart                  # Start the brain"
+  echo "    /loop 10m /heart        # Or start with interval"
+  echo ""
+  echo "  Available modes:"
+  echo ""
+  echo "    heart init agent        # Single project executor"
+  echo "    heart init watcher      # Build/test/deps monitor"
+  echo "    heart init multi        # Monorepo orchestrator"
+  echo "    heart init reviewer .   # Review another project"
+  echo ""
+  echo -e "  ${DIM}Restart your terminal or run 'source ~/${shell_rc##*/}' to use 'heart' command.${RESET}"
+  echo ""
+}
+
+# ── Uninstall ────────────────────────────────────────────
+
+cmd_uninstall() {
+  print_logo
+  echo -e "${YELLOW}Uninstalling Heart...${RESET}"
+
+  # Remove skills
+  rm -rf "$SKILLS_DIR/heart" "$SKILLS_DIR/heart-stop" "$SKILLS_DIR/heart-add"
+  echo -e "  ${GREEN}✓${RESET} Skills removed"
+
+  # Remove hook from settings using Node.js
+  if [[ -f "$SETTINGS_FILE" ]]; then
+    if command -v node &>/dev/null; then
+      node -e "
+        const fs = require('fs');
+        const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf8'));
+        if (settings.hooks && settings.hooks.Stop) {
+          settings.hooks.Stop = settings.hooks.Stop.filter(s =>
+            !(s.hooks && s.hooks.some(h => h.command && h.command.includes('heart')))
+          );
+          if (settings.hooks.Stop.length === 0) delete settings.hooks.Stop;
+        }
+        fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2) + '\n');
+      " 2>/dev/null
+      echo -e "  ${GREEN}✓${RESET} Stop hook removed from settings"
+    elif command -v jq &>/dev/null; then
+      local tmp=$(mktemp)
+      jq 'if .hooks.Stop then .hooks.Stop |= map(select(.hooks | all(.command | contains("heart") | not))) else . end' "$SETTINGS_FILE" > "$tmp"
+      mv "$tmp" "$SETTINGS_FILE"
+      echo -e "  ${GREEN}✓${RESET} Stop hook removed from settings"
+    fi
+  fi
+
+  echo ""
+  echo -e "${GREEN}Heart uninstalled.${RESET} Plugin files remain at $HEART_HOME"
+  echo "  Run 'heart install' to re-install."
+}
+
+# ── Init ─────────────────────────────────────────────────
+
+cmd_init() {
+  local type="${1:-agent}"
+  local target="${2:-}"
+
+  if [[ -f "HEART.md" ]]; then
+    echo -e "${YELLOW}HEART.md already exists in this directory.${RESET}"
+    echo "Delete it first or edit it directly."
+    exit 1
+  fi
+
+  case "$type" in
+    agent)
+      cp "$TEMPLATES_DIR/agent.md" "HEART.md"
+      echo -e "${GREEN}✓${RESET} Created HEART.md (agent mode)"
+      echo -e "${DIM}  Add tasks and run /heart in Claude Code${RESET}"
+      ;;
+    reviewer)
+      if [[ -z "$target" ]]; then
+        echo -e "${RED}Error: reviewer requires a target path${RESET}"
+        echo "Usage: heart init reviewer /path/to/project"
+        exit 1
+      fi
+      # Resolve to absolute path
+      target=$(cd "$target" 2>/dev/null && pwd || echo "$target")
+      sed "s|TARGET_PATH|$target|g" "$TEMPLATES_DIR/reviewer.md" > "HEART.md"
+      echo -e "${GREEN}✓${RESET} Created HEART.md (reviewer mode)"
+      echo -e "${DIM}  Target: $target${RESET}"
+      ;;
+    watcher)
+      cp "$TEMPLATES_DIR/watcher.md" "HEART.md"
+      echo -e "${GREEN}✓${RESET} Created HEART.md (watcher mode)"
+      echo -e "${DIM}  Monitors build, tests, deps, security${RESET}"
+      ;;
+    multi)
+      cp "$TEMPLATES_DIR/multi.md" "HEART.md"
+      echo -e "${GREEN}✓${RESET} Created HEART.md (orchestrator mode)"
+      echo -e "${DIM}  Edit ## Projects to list sub-project HEART.md paths${RESET}"
+      ;;
+    *)
+      echo -e "${RED}Unknown init type: $type${RESET}"
+      echo "Available: agent, reviewer, watcher, multi"
+      exit 1
+      ;;
+  esac
+}
+
+# ── Status ───────────────────────────────────────────────
+
+cmd_status() {
+  local heart_file="HEART.md"
+  local state_file=".claude/heart-state.local.md"
+
+  print_logo
+
+  if [[ ! -f "$heart_file" ]]; then
+    echo -e "  ${DIM}No HEART.md in current directory.${RESET}"
+    echo "  Run 'heart init' to create one."
+    return
+  fi
+
+  # Read config
+  local mode=$(grep '^\- mode:' "$heart_file" | sed 's/.*: *//' | sed 's/ *#.*//' || echo "agent")
+
+  # Count tasks
+  local total_done
+  total_done=$(grep -c '^\- \[x\]' "$heart_file" 2>/dev/null || true)
+  total_done=${total_done:-0}
+  total_done=$(echo "$total_done" | tr -d '[:space:]')
+  local total_remaining
+  total_remaining=$(grep -c '^\- \[ \]' "$heart_file" 2>/dev/null || true)
+  total_remaining=${total_remaining:-0}
+  total_remaining=$(echo "$total_remaining" | tr -d '[:space:]')
+  local total=$((total_done + total_remaining))
+
+  # Check state
+  if [[ -f "$state_file" ]]; then
+    local iteration=$(grep '^iteration:' "$state_file" | awk '{print $2}' || echo "?")
+    local started=$(grep '^started_at:' "$state_file" | sed 's/.*: *//' | sed 's/"//g' || echo "?")
+    local current=$(grep '^current_task:' "$state_file" | sed 's/^current_task: *//' | sed 's/^"\(.*\)"$/\1/' || echo "?")
+
+    echo -e "  ${GREEN}●${RESET}  ${BOLD}Running${RESET} (iteration $iteration)"
+    echo -e "  ${DIM}Started:${RESET}  $started"
+    echo -e "  ${DIM}Current:${RESET}  $current"
+  else
+    echo -e "  ${DIM}○${RESET}  ${BOLD}Idle${RESET}"
+  fi
+
+  echo -e "  ${DIM}Mode:${RESET}     $mode"
+  echo -e "  ${DIM}Project:${RESET}  $(pwd)"
+  echo ""
+  echo -e "  ${GREEN}$total_done${RESET} done  ${YELLOW}$total_remaining${RESET} remaining  ${DIM}$total total${RESET}"
+
+  # Show progress bar
+  if [[ $total -gt 0 ]]; then
+    local pct=$((total_done * 100 / total))
+    local bar_len=30
+    local filled=$((pct * bar_len / 100))
+    local empty=$((bar_len - filled))
+    echo -n "  ["
+    printf "${GREEN}%0.s█${RESET}" $(seq 1 $filled 2>/dev/null) || true
+    printf "${DIM}%0.s░${RESET}" $(seq 1 $empty 2>/dev/null) || true
+    echo -e "] ${pct}%"
+  fi
+
+  # Multi-project: show sub-project status
+  if [[ "$mode" == "orchestrator" ]]; then
+    echo ""
+    echo -e "  ${BOLD}Sub-projects:${RESET}"
+    grep '^\- ' "$heart_file" | grep ':' | grep -v '^\- interval\|^\- mode\|^\- max_iterations\|^\- \[' | while read -r line; do
+      local name=$(echo "$line" | sed 's/^\- //' | cut -d: -f1 | xargs)
+      local path=$(echo "$line" | cut -d: -f2 | xargs)
+      if [[ -f "$path" ]]; then
+        local sub_done=$(grep -c '^\- \[x\]' "$path" 2>/dev/null || echo "0")
+        local sub_remaining=$(grep -c '^\- \[ \]' "$path" 2>/dev/null || echo "0")
+        echo -e "    ${DIM}$name:${RESET} ${GREEN}$sub_done${RESET} done, ${YELLOW}$sub_remaining${RESET} remaining"
+      else
+        echo -e "    ${DIM}$name:${RESET} ${RED}HEART.md not found${RESET}"
+      fi
+    done
+  fi
+
+  echo ""
+}
+
+# ── Start ────────────────────────────────────────────────
+
+cmd_start() {
+  local loop_interval=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --loop)
+        loop_interval="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  if [[ ! -f "HEART.md" ]]; then
+    echo -e "${RED}No HEART.md found. Run 'heart init' first.${RESET}"
+    exit 1
+  fi
+
+  if [[ -n "$loop_interval" ]]; then
+    echo -e "${GREEN}♥${RESET} Starting heart with ${loop_interval} interval..."
+    echo -e "${DIM}  This will run /loop ${loop_interval} /heart in Claude Code${RESET}"
+    echo ""
+    echo "  Run this in your Claude Code session:"
+    echo ""
+    echo -e "  ${BOLD}/loop ${loop_interval} /heart${RESET}"
+    echo ""
+  else
+    echo -e "${GREEN}♥${RESET} Starting heart..."
+    echo ""
+    echo "  Run this in your Claude Code session:"
+    echo ""
+    echo -e "  ${BOLD}/heart${RESET}"
+    echo ""
+  fi
+}
+
+# ── Stop ─────────────────────────────────────────────────
+
+cmd_stop() {
+  local state_file=".claude/heart-state.local.md"
+
+  if [[ -f "$state_file" ]]; then
+    rm "$state_file"
+    echo -e "${GREEN}♥${RESET} Heart stopped."
+  else
+    echo -e "${DIM}Heart is not running in this directory.${RESET}"
+  fi
+}
+
+# ── Add ──────────────────────────────────────────────────
+
+cmd_add() {
+  local task="$*"
+
+  if [[ -z "$task" ]]; then
+    echo -e "${RED}Error: provide a task description${RESET}"
+    echo "Usage: heart add \"Fix the login page\""
+    exit 1
+  fi
+
+  if [[ ! -f "HEART.md" ]]; then
+    echo -e "${RED}No HEART.md found. Run 'heart init' first.${RESET}"
+    exit 1
+  fi
+
+  # Find the ## Tasks section and append before the next ## heading
+  local tmp=$(mktemp)
+  local added=false
+  local in_tasks=false
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^##[[:space:]]+Tasks ]]; then
+      in_tasks=true
+      echo "$line" >> "$tmp"
+      continue
+    fi
+    if [[ "$in_tasks" == true ]] && [[ "$line" =~ ^##[[:space:]] ]]; then
+      # Insert task before the next section
+      echo "- [ ] $task" >> "$tmp"
+      echo "" >> "$tmp"
+      in_tasks=false
+      added=true
+    fi
+    echo "$line" >> "$tmp"
+  done < "HEART.md"
+
+  # If we never hit another section, append at the end of tasks
+  if [[ "$added" == false && "$in_tasks" == true ]]; then
+    echo "- [ ] $task" >> "$tmp"
+    added=true
+  fi
+
+  if [[ "$added" == true ]]; then
+    mv "$tmp" "HEART.md"
+    echo -e "${GREEN}✓${RESET} Added: $task"
+  else
+    rm "$tmp"
+    echo -e "${RED}Could not find ## Tasks section in HEART.md${RESET}"
+    exit 1
+  fi
+}
+
+# ── Main ─────────────────────────────────────────────────
+
+case "${1:-}" in
+  install)    cmd_install ;;
+  uninstall)  cmd_uninstall ;;
+  init)       shift; cmd_init "$@" ;;
+  status)     cmd_status ;;
+  start)      shift; cmd_start "$@" ;;
+  stop)       cmd_stop ;;
+  add)        shift; cmd_add "$@" ;;
+  version|-v|--version)
+    echo "heart v${VERSION}"
+    ;;
+  help|-h|--help|"")
+    print_usage
+    ;;
+  *)
+    echo -e "${RED}Unknown command: $1${RESET}"
+    echo "Run 'heart help' for usage."
+    exit 1
+    ;;
+esac
