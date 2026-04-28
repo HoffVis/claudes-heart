@@ -1,151 +1,120 @@
 # Heart
 
-An autonomous project brain for Claude Code. Give it a task list, walk away, and come back to quality work — reviewed, refined, and iterated.
+**Claude Code runs your tasks. Heart makes it think.**
 
-Heart reads a `HEART.md` file, prioritizes tasks, crafts targeted prompts, spawns sub-agents to execute, reviews results for quality, and iterates until satisfied. It's a PM, prompt engineer, QA reviewer, and UX critic rolled into one.
+Write a task list in markdown. Heart reads it, prioritizes, crafts detailed briefs, spawns agents to build, reviews the output, iterates until it's actually good, and adds new tasks when it spots room to improve. Then it does the next one.
 
-## Quick Start
+One file. One command. Walk away. Come back to quality work.
+
+> Built on official Claude Code primitives. No token extraction. No daemons. No ToS violations.
+
+---
+
+## 30-Second Setup
 
 ```bash
-# Install
-git clone https://github.com/th2025/heart.git ~/.claude/plugins/local/heart
+git clone https://github.com/HoffVis/heart.git ~/.claude/plugins/local/heart
 ~/.claude/plugins/local/heart/bin/heart install
-# Restart your terminal
+```
 
-# Use
+Restart your terminal. Done.
+
+## Use It
+
+```bash
 cd your-project
-heart init
-# Edit HEART.md with your tasks
-# Open Claude Code in the project
-/heart                  # Start the brain
-/loop 10m /heart        # Or run on interval
+heart init                  # Creates HEART.md
 ```
 
-## What It Does
+Edit `HEART.md` with your tasks. Then in Claude Code:
 
 ```
-/heart fires
-  ↓
-UNDERSTAND — reads HEART.md, CLAUDE.md, scans codebase
-  ↓
-PRIORITIZE — picks highest-impact task
-  ↓
-CRAFT — writes detailed brief with acceptance criteria
-  ↓
-EXECUTE — spawns Agent with the brief
-  ↓
-REVIEW — checks quality, iterates up to 3x if not satisfied
-  ↓
-REFLECT — marks done, adds improvement tasks if it sees issues
-  ↓
-Stop hook → next iteration
+/heart                      # Start the brain
+/loop 10m /heart            # Or run it on autopilot
 ```
+
+---
+
+## What Actually Happens
+
+Heart doesn't just check boxes. It thinks:
+
+1. **Reads the project** — HEART.md, CLAUDE.md, source files. Builds a mental model.
+2. **Picks the right task** — Not just "next in line." Dependencies first, refinements over new features.
+3. **Writes a real brief** — Specific files, design constraints, acceptance criteria. Like a senior dev handing off work.
+4. **Spawns an agent** — A sub-agent builds it. The brain keeps its hands clean for judgment.
+5. **Reviews the result** — Reads the code. Runs the build. Checks quality. Up to 3 iterations per task.
+6. **Generates more work** — Spots issues, adds improvement tasks. The backlog feeds itself.
+
+Then the stop hook catches the exit, feeds the next task, and the cycle continues.
+
+## HEART.md
+
+Simple works:
+
+```markdown
+## Tasks
+- [ ] Add dark mode
+- [ ] Fix the login page
+```
+
+Detailed works better:
+
+```markdown
+## Tasks
+- [ ] Add dark mode
+  - **Goal:** System-preference-aware theme toggle
+  - **Constraints:** CSS variables only, no runtime JS for initial theme
+  - **Quality:** No flash of wrong theme on load
+
+## Improvement Loops
+- [ ] Run build and fix errors
+- [ ] Review code quality, add tasks for issues found
+```
+
+The brain enriches simple tasks before executing. Rich tasks with Goal/Constraints/Quality just give it a head start.
+
+## Modes
+
+```bash
+heart init agent             # Single project — build things (default)
+heart init watcher           # Monitor build, tests, deps, security
+heart init reviewer <path>   # Review another project, feed it tasks
+heart init multi             # Orchestrate a monorepo
+```
+
+**Agent** — Focused executor. The workhorse.
+
+**Watcher** — Runs build, tests, dependency checks, security audits. Adds fix tasks when things break. Great on a `/loop`.
+
+**Reviewer** — Points at another project, reviews its code, and writes tasks into its HEART.md. A second pair of eyes.
+
+**Multi** — Reads HEART.md files across sub-projects, prioritizes globally, respects cross-project dependencies. A tech lead for your monorepo.
 
 ## CLI
 
 ```bash
-heart install              # One-time setup
-heart uninstall            # Remove from Claude Code
+heart install              # Set up skills, hooks, PATH
+heart uninstall            # Clean removal
 
-heart init                 # Create HEART.md (agent mode)
-heart init agent           # Single project executor
-heart init reviewer <path> # Reviews another project, adds tasks
-heart init watcher         # Monitors build, tests, deps, security
-heart init multi           # Monorepo orchestrator
+heart init [mode]          # Create HEART.md
+heart add "task"           # Add a task from terminal
+heart status               # Progress bar + stats
+heart stop                 # Kill the loop
 
-heart start                # Start the brain
-heart start --loop 10m     # Start with interval
-heart stop                 # Stop the heartbeat
-heart add "task"           # Add a task
-heart status               # Show progress
+heart start                # Prints the Claude Code command
+heart start --loop 10m     # Prints the loop command
 ```
-
-## HEART.md Format
-
-Heart works with simple checkboxes but produces better results with rich tasks:
-
-```markdown
-# Heart Tasks
-
-## Config
-- mode: agent
-- max_iterations: 0
-
-## Tasks
-- [ ] Build the authentication system
-  - **Goal:** JWT-based auth with refresh tokens
-  - **Constraints:** Use existing user table, no third-party auth providers
-  - **Quality:** Login flow should feel instant, errors should be specific
-
-- [ ] Add input validation to API endpoints
-
-## Improvement Loops
-- [ ] Run build and fix errors
-- [ ] Review code quality and add improvement tasks
-```
-
-**Simple tasks** work fine — the brain enriches them with context before executing.
-**Rich tasks** with Goal/Constraints/Quality produce significantly better output.
-
-## Modes
-
-### Agent (default)
-Focused single-project executor. Reads tasks, builds, reviews, iterates.
-
-```bash
-heart init agent
-```
-
-### Watcher
-Continuous monitoring — checks build, tests, dependencies, security. Adds fix tasks when issues are found.
-
-```bash
-heart init watcher
-```
-
-### Reviewer
-Reviews another project's codebase and adds improvement tasks to its HEART.md. Useful for cross-project oversight.
-
-```bash
-heart init reviewer /path/to/target/project
-```
-
-### Multi (Orchestrator)
-Manages multiple sub-projects from a root HEART.md. Reads each sub-project's backlog, prioritizes globally, respects cross-project dependencies.
-
-```bash
-heart init multi
-# Edit HEART.md to list sub-projects:
-# ## Projects
-# - web: ./apps/web/HEART.md
-# - api: ./apps/api/HEART.md
-#
-# ## Dependencies
-# - web depends on api (API endpoints needed first)
-```
-
-## How It Works
-
-Heart uses three Claude Code primitives:
-
-1. **Skills** — `/heart`, `/heart-stop`, `/heart-add` are Claude Code skills that load automatically
-2. **Stop Hook** — intercepts Claude's exit, reads HEART.md for the next task, and re-feeds it as a new prompt
-3. **Cron** — `/loop Nm /heart` runs the brain on an interval using Claude Code's built-in scheduler
-
-The brain (main session) spawns **Agent sub-agents** for each task. The brain thinks and reviews; the agents build. This separation means quality judgment stays in the context-rich main session while execution happens in focused sub-agents.
 
 ## Running Overnight
 
-```bash
-# In Claude Code:
+```
 /loop 10m /heart
 ```
 
-Heart will process tasks, run improvement loops, and rest between cycles. When the backlog empties, it scans for improvement opportunities and self-generates new tasks. Tested for 10+ hours continuous operation.
+Heart processes all tasks, runs improvement loops once, exits cleanly, and the cron fires it again. Tested for 10+ hours, 76+ tasks, survived auto-compaction without issues.
 
-### Permissions
-
-For autonomous operation, add permissions to your project's `.claude/settings.local.json`:
+For unattended operation, allow safe tools in `.claude/settings.local.json`:
 
 ```json
 {
@@ -163,36 +132,53 @@ For autonomous operation, add permissions to your project's `.claude/settings.lo
 }
 ```
 
-## Design Principles
+## How It Works (for the curious)
 
-Heart was inspired by [OpenClaw](https://github.com/openclaw/openclaw) but built entirely on official Claude Code features:
+Three Claude Code primitives, stacked:
 
-- **No token extraction** — uses your Claude subscription through official CLI
-- **No third-party daemons** — runs inside Claude Code sessions
-- **ToS compliant** — uses skills, hooks, and cron as designed
-- **1M context** — the brain accumulates project understanding and gets better over time
+- **Skills** — `/heart`, `/heart-stop`, `/heart-add` load as Claude Code skills from `~/.claude/skills/`
+- **Stop Hook** — A bash script registered in `~/.claude/settings.json` that intercepts session exits, reads HEART.md, and re-feeds the brain prompt with the next task
+- **Cron** — `/loop` schedules recurring `/heart` invocations with built-in expiry
 
-### v1 vs v2
+The brain spawns **Agent sub-agents** per task. The brain holds context and judgment; agents hold tools and execution. This separation is why quality stays high even on task 50.
 
-Heart v1 was a blind checkbox machine — it completed 76 tasks overnight but quality was mediocre. v2 introduced the brain architecture: agent spawning, quality gates, iterative refinement, and proactive task generation. The difference is dramatic.
+## Why Not Just Use OpenClaw?
+
+OpenClaw pioneered the heartbeat pattern for AI coding agents. Heart takes the same idea but builds it on official Claude Code features:
+
+| | Heart | OpenClaw |
+|---|---|---|
+| Auth | Your subscription, official CLI | Extracted OAuth tokens (banned) |
+| Context | 1M — accumulates over time | Spin up/teardown per task |
+| Quality | Reviews + iterates up to 3x | Fire and forget |
+| Self-improving | Generates its own tasks | Static task list |
+| Setup | `git clone` + `heart install` | Daemon + config |
+| ToS | Fully compliant | Caused account suspensions |
 
 ## Requirements
 
 - Claude Code CLI
 - Claude Pro or Max subscription
-- Node.js (used by installer for JSON manipulation)
-- macOS or Linux (Windows untested)
+- Node.js (for installer)
+- macOS or Linux
 
-## File Structure
+## For AI Agents Reading This
 
-```
-~/.claude/plugins/local/heart/
-├── bin/heart              CLI
-├── hooks/stop-hook.sh     Loop mechanism
-├── skills-src/            Canonical skill files
-├── templates/             HEART.md templates
-└── .claude-plugin/        Plugin metadata
-```
+If a user asked you to set up Heart, here's what to do:
+
+1. Clone: `git clone https://github.com/HoffVis/heart.git ~/.claude/plugins/local/heart`
+2. Install: `~/.claude/plugins/local/heart/bin/heart install`
+3. The user needs to restart their terminal (or `source ~/.zshrc`)
+4. In the target project: `heart init` to create HEART.md
+5. Edit HEART.md with the user's tasks
+6. In Claude Code: `/heart` to start, or `/loop 10m /heart` for autopilot
+
+The install script handles skills (`~/.claude/skills/heart*`), the Stop hook (`~/.claude/settings.json`), and PATH. It's idempotent — safe to run multiple times.
+
+Key files after install:
+- `~/.claude/skills/heart/SKILL.md` — The brain (v2, with agent spawning and quality review)
+- `~/.claude/plugins/local/heart/hooks/stop-hook.sh` — Loop mechanism
+- `HEART.md` in the project root — The task backlog
 
 ## License
 
