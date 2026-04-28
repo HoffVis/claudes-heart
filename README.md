@@ -1,4 +1,4 @@
-# Heart
+# Claude's Heart
 
 **Claude Code runs your tasks. Heart makes it think.**
 
@@ -13,7 +13,7 @@ One file. One command. Walk away. Come back to quality work.
 ## 30-Second Setup
 
 ```bash
-git clone https://github.com/HoffVis/heart.git ~/.claude/plugins/local/heart
+git clone https://github.com/HoffVis/claudes-heart.git ~/.claude/plugins/local/heart
 ~/.claude/plugins/local/heart/bin/heart install
 ```
 
@@ -166,7 +166,7 @@ OpenClaw pioneered the heartbeat pattern for AI coding agents. Heart takes the s
 
 If a user asked you to set up Heart, here's what to do:
 
-1. Clone: `git clone https://github.com/HoffVis/heart.git ~/.claude/plugins/local/heart`
+1. Clone: `git clone https://github.com/HoffVis/claudes-heart.git ~/.claude/plugins/local/heart`
 2. Install: `~/.claude/plugins/local/heart/bin/heart install`
 3. The user needs to restart their terminal (or `source ~/.zshrc`)
 4. In the target project: `heart init` to create HEART.md
