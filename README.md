@@ -134,6 +134,20 @@ For unattended operation, allow safe tools in `.claude/settings.local.json`:
 }
 ```
 
+## Monitor From Your Phone
+
+Heart pairs naturally with Claude Code's `/remote` feature. Start Heart on your machine, connect from the Claude Code app on your phone, and watch it work from the couch. Or bed. Or wherever you deserve to be while your AI is building.
+
+```
+# On your machine — start Heart
+/loop 10m /heart
+
+# On your phone — connect to the session
+# Use the Claude Code mobile app with /remote
+```
+
+You can see every task as it completes, watch the agent spawn, and even add tasks mid-session from your phone with `/heart-add "new task"`. It's the closest thing to managing a remote dev team from your pocket.
+
 ## How It Works (for the curious)
 
 Three Claude Code primitives, stacked:
