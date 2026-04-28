@@ -6,6 +6,8 @@ Write a task list. Heart reads it, prioritizes, spawns agents to build, reviews 
 
 > Built on official Claude Code primitives. No token extraction. No daemons. No ToS violations.
 
+> **Status:** Experimental. Tested on one machine, by one person, overnight. It worked great — 76 tasks, 10+ hours, zero crashes. But it's 4 commits old and you're an early adopter. Here be dragons, bring coffee.
+
 ---
 
 ## 30-Second Setup
