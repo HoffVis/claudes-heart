@@ -6,7 +6,7 @@ Write a task list. Heart reads it, prioritizes, spawns agents to build, reviews 
 
 > Built on official Claude Code primitives. No token extraction. No daemons. No ToS violations.
 
-> **Status:** Experimental. Tested on one machine, by one person, overnight. It worked great — 76 tasks, 10+ hours, zero crashes. But it's a few commits old and you're an early adopter. Here be dragons, bring coffee.
+> **Status:** Experimental. Tested on one machine, by one person, overnight. It worked great — 76 tasks, 10+ hours, zero crashes. But you're an early adopter, and it's still young. Here be dragons, bring coffee.
 
 > **Field report:** Built this in an evening, set `/loop 10m /heart` running, went to bed. Woke up to 76 completed tasks and a working app. See [Pulse](https://github.com/HoffVis/pulse) — the app Heart built overnight.
 
