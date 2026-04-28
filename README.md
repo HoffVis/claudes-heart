@@ -1,10 +1,8 @@
 # Claude's Heart
 
-**Claude Code runs your tasks. Heart makes it think.**
+**It's just a markdown file and a bash script, but it works!**
 
-Write a task list in markdown. Heart reads it, prioritizes, crafts detailed briefs, spawns agents to build, reviews the output, iterates until it's actually good, and adds new tasks when it spots room to improve. Then it does the next one.
-
-One file. One command. Walk away. Come back to quality work.
+Write a task list. Heart reads it, prioritizes, spawns agents to build, reviews the output, iterates until it's actually good, and adds new tasks when it spots room to improve. Then it does the next one. Then the next one. Then you wake up and there's an app.
 
 > Built on official Claude Code primitives. No token extraction. No daemons. No ToS violations.
 
