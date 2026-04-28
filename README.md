@@ -2,13 +2,17 @@
 
 **It's just a markdown file and a bash script, but it works!**
 
-Write a task list. Heart reads it, prioritizes, spawns agents to build, reviews the output, iterates until it's actually good, and adds new tasks when it spots room to improve. Then it does the next one. Then the next one. Then you wake up and there's an app.
+A heartbeat for Claude Code. Not just a task runner — a recurring loop that keeps checking, keeps responding, keeps maintaining. Write what you want it to do, and it does it. Every 10 minutes. Forever.
+
+Check email, summarize what's new, flag anything urgent. Monitor your services, alert you if something's down. Run the build, fix what broke. Review code quality, add improvement tasks. With MCP servers connected, the loops reach into anything — Gmail, Slack, databases, APIs.
+
+Tasks get done too. But the heartbeat is the point.
 
 > Built on official Claude Code primitives. No token extraction. No daemons. No ToS violations.
 
-> **Status:** Experimental. Tested on one machine, by one person, overnight. It worked great — 76 tasks, 10+ hours, zero crashes. But you're an early adopter, and it's still young. Here be dragons, bring coffee.
+> **Status:** Experimental, but battle-tested. 76 tasks, 10+ hours overnight, zero crashes. You're an early adopter, and it's still young. Here be dragons, bring coffee.
 
-> **Field report:** Built this in an evening, set `/loop 10m /heart` running, went to bed. Woke up to 76 completed tasks and a working app. See [Pulse](https://github.com/HoffVis/pulse) — the app Heart built overnight.
+> **Field report:** Set `/loop 10m /heart` running, went to bed. Woke up to 76 completed tasks and a working app. See [Pulse](https://github.com/HoffVis/pulse) — the app Heart built that night.
 
 ---
 
@@ -52,29 +56,33 @@ Then the stop hook catches the exit, feeds the next task, and the cycle continue
 
 ## HEART.md
 
-Simple works:
+The file has two sections that work differently:
+
+**Tasks** get done and checked off:
 
 ```markdown
 ## Tasks
 - [ ] Add dark mode
 - [ ] Fix the login page
+  - **Goal:** Fix the redirect loop on expired sessions
+  - **Constraints:** Don't touch the auth middleware
+  - **Quality:** User sees a clear error, not a blank page
 ```
 
-Detailed works better:
+**Improvement Loops** never get checked off. They run every heartbeat, forever:
 
 ```markdown
-## Tasks
-- [ ] Add dark mode
-  - **Goal:** System-preference-aware theme toggle
-  - **Constraints:** CSS variables only, no runtime JS for initial theme
-  - **Quality:** No flash of wrong theme on load
-
 ## Improvement Loops
-- [ ] Run build and fix errors
-- [ ] Review code quality, add tasks for issues found
+- [ ] Check email via Gmail MCP, summarize unread, flag anything urgent
+- [ ] Run the build — if errors, add fix tasks
+- [ ] Monitor all services in pulse.config.json, alert if any are down
+- [ ] Review recent git commits for code quality issues
+- [ ] Check for outdated dependencies, add upgrade tasks if needed
 ```
 
-The brain enriches simple tasks before executing. Rich tasks with Goal/Constraints/Quality just give it a head start.
+Tasks are the sprint. Improvement loops are the heartbeat. The loops are what make this more than a task runner — they're recurring workflows that keep going as long as Heart is running. With MCP servers connected, they can reach into email, Slack, databases, APIs, anything.
+
+The brain enriches simple tasks with context before executing. Rich tasks with Goal/Constraints/Quality just give it a head start.
 
 ## Modes
 
